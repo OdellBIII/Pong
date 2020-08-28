@@ -1,0 +1,14 @@
+Description: Two player pong game.
+
+ToDo:
+- Draw one paddle [DONE]
+- Move paddle [DONE]
+- Draw one ball [DONE]
+- Make ball move and bounce around screen [DONE]
+- Handle ball and paddle collisions [DONE]
+- Create event handler for ball hitting bottom of screen event [DONE]
+- Have ball reset to above paddle and stop moving [DONE]
+- Have ball move as soon as paddle moves [DONE]
+- Setup socket.io on client and Server [In progress]
+- Handle ball movement through server code and events [Not started]
+- Send message when client paddle collides with ball [Not started]

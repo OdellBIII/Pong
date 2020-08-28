@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title></title>
+  </head>
+  <body>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.24.0/dist/phaser.js"></script>
+    <script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+    <script>
+      var config = {
+        type: Phaser.AUTO,
+        width: 800,
+        height: 600,
+        scene: {
+            preload: preload,
+            create: create,
+            update: update
+        }
+      };
+
+    var game = new Phaser.Game(config);
+    var graphics;
+
+    // Paddle variables
+    var paddle;
+    var paddle_shape;
+
+    // Ball variables
+    var ball;
+    var ball_shape;
+
+    // Input variables
+
+    var input_manager;
+
+    // User input managment
+    function handleUserInput(input_manager)
+    {
+      if(input_manager.pointer1.isDown)
+      {
+        paddle.shape.x = input_manager.pointer1.x - paddle.width / 2;
+        ball.isEnabled = true;
+      }
+    }
+
+    function didCollideWithCourtVertically(ball)
+    {
+      return (ball.shape.y < 0) || (ball.shape.y + ball.height > config.height);
+    }
+
+    function didCollideWithCourtHorizontally(ball)
+    {
+      return ball.shape.x < 0 || (ball.shape.x + ball.width) > config.width;
+    }
+
+    function didCollideWithPaddle(ball, paddle)
+    {
+      return Phaser.Geom.Rectangle.Overlaps(ball.shape, paddle.shape);
+    }
+    // Move Ball
+    function moveBall()
+    {
+      if(didCollideWithCourtVertically(ball))
+      {
+
+        if(ball.shape.y < 0)
+        {
+          ball.shape.y = 0;
+        }
+        else if(ball.shape.y + ball.shape.height > config.height)
+        {
+          ball.shape.y = paddle.shape.y - ball.height;
+          ball.shape.x = paddle.shape.x + paddle.width / 2;
+          ball.isEnabled = false;
+        }
+
+
+        console.log("Vertical collision detected");
+        ball.dy *= -1;
+      }
+
+      if(didCollideWithCourtHorizontally(ball))
+      {
+        console.log("Horizontal collision detected!");
+
+
+        if(ball.shape.x < 0)
+        {
+          ball.shape.x = 0;
+        }
+        else if(ball.shape.x + ball.shape.width > config.height)
+        {
+          ball.shape.x = config.width - ball.shape.width;
+        }
+
+        ball.dx *= -1;
+      }
+
+      if(didCollideWithPaddle(ball, paddle))
+      {
+        ball.dy *= -1;
+      }
+
+      if(ball.isEnabled)
+      {
+        ball.shape.x += ball.dx;
+        ball.shape.y += ball.dy;
+      }
+    }
+
+    // Rendering objects in scene
+    function renderPaddle(paddle)
+    {
+      graphics.clear();
+      graphics.fillStyle(paddle.color);
+      graphics.fillRectShape(paddle.shape);
+    }
+
+    function renderBall(ball)
+    {
+      graphics.fillStyle(ball.color);
+      graphics.fillRectShape(ball.shape);
+    }
+
+    function render()
+    {
+      renderPaddle(paddle);
+      renderBall(ball);
+    }
+    function preload ()
+    {
+    }
+
+    function create ()
+    {
+      graphics = this.add.graphics();
+      input_manager = this.input;
+
+
+
+      paddle = {
+        x : config.width / 2,
+        y : config.height - 50,
+        width : 100,
+        height : 20,
+        color : 0xFF0000,
+      };
+
+      paddle_shape = new Phaser.Geom.Rectangle(paddle.x, paddle.y, paddle.width, paddle.height, 0x000000);
+
+      paddle.shape = paddle_shape;
+
+      ball = {
+        x : config.width / 2,
+        y : config.height / 2,
+        width : 20,
+        height : 20,
+        color : 0xFFFF00,
+        dx : 5,
+        dy : 5,
+        isEnabled : true,
+      };
+      ball_shape = new Phaser.Geom.Rectangle(ball.x, ball.y, ball.width, ball.height, 0x000000);
+
+      ball.shape = ball_shape;
+
+    }
+
+    function update ()
+    {
+
+      handleUserInput(input_manager);
+      moveBall();
+      render();
+
+    }
+
+    </script>
+  </body>
+</html>
