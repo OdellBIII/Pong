@@ -3,15 +3,64 @@
   <head>
     <meta charset="utf-8">
     <title></title>
+    <style>
+
+      body {
+
+        background-color: #000000;
+        overflow-x: hidden;
+        overflow-y: hidden;
+
+        margin : 0px;
+        padding : 0px;
+      }
+
+      canvas {
+
+        position : absolute;
+        top : 10%;
+      }
+
+      #scoreboard {
+        position: absolute;
+        width : 100%;
+        height : 100px;
+        top : 0%;
+        background-color: #a6a6a6;
+      }
+
+      #main-score {
+        font-size: 30px;
+        position: absolute;
+
+        left : 25%;
+        top : 10%;
+      }
+
+      #other-score {
+        font-size: 30px;
+        position: absolute;
+
+        right : 25%;
+        top : 10%;
+      }
+
+      #final-message {
+
+        display: hidden;
+        text-align: center;
+      }
+
+    </style>
   </head>
   <body>
     <script src="//cdn.jsdelivr.net/npm/phaser@3.24.0/dist/phaser.js"></script>
-    <script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <script>
       var config = {
         type: Phaser.AUTO,
-        width: 800,
-        height: 600,
+        width: 900,
+        height: 1500,
         scene: {
             preload: preload,
             create: create,
@@ -21,10 +70,15 @@
 
     var game = new Phaser.Game(config);
     var graphics;
+    var socket;
 
     // Paddle variables
-    var paddle;
-    var paddle_shape;
+    var paddle_main;
+    var paddle_main_shape;
+
+    // Other paddle variables
+    var paddle_other;
+    var paddle_other_shape;
 
     // Ball variables
     var ball;
@@ -39,80 +93,18 @@
     {
       if(input_manager.pointer1.isDown)
       {
-        paddle.shape.x = input_manager.pointer1.x - paddle.width / 2;
+        paddle_main.shape.x = input_manager.pointer1.x - paddle_main.width / 2;
+        paddle_main.x = input_manager.pointer1.x - paddle_main.width / 2;
+
         ball.isEnabled = true;
-      }
-    }
 
-    function didCollideWithCourtVertically(ball)
-    {
-      return (ball.shape.y < 0) || (ball.shape.y + ball.height > config.height);
-    }
-
-    function didCollideWithCourtHorizontally(ball)
-    {
-      return ball.shape.x < 0 || (ball.shape.x + ball.width) > config.width;
-    }
-
-    function didCollideWithPaddle(ball, paddle)
-    {
-      return Phaser.Geom.Rectangle.Overlaps(ball.shape, paddle.shape);
-    }
-    // Move Ball
-    function moveBall()
-    {
-      if(didCollideWithCourtVertically(ball))
-      {
-
-        if(ball.shape.y < 0)
-        {
-          ball.shape.y = 0;
-        }
-        else if(ball.shape.y + ball.shape.height > config.height)
-        {
-          ball.shape.y = paddle.shape.y - ball.height;
-          ball.shape.x = paddle.shape.x + paddle.width / 2;
-          ball.isEnabled = false;
-        }
-
-
-        console.log("Vertical collision detected");
-        ball.dy *= -1;
-      }
-
-      if(didCollideWithCourtHorizontally(ball))
-      {
-        console.log("Horizontal collision detected!");
-
-
-        if(ball.shape.x < 0)
-        {
-          ball.shape.x = 0;
-        }
-        else if(ball.shape.x + ball.shape.width > config.height)
-        {
-          ball.shape.x = config.width - ball.shape.width;
-        }
-
-        ball.dx *= -1;
-      }
-
-      if(didCollideWithPaddle(ball, paddle))
-      {
-        ball.dy *= -1;
-      }
-
-      if(ball.isEnabled)
-      {
-        ball.shape.x += ball.dx;
-        ball.shape.y += ball.dy;
+        socket.emit("paddle-movement", {paddle : paddle_main});
       }
     }
 
     // Rendering objects in scene
     function renderPaddle(paddle)
     {
-      graphics.clear();
       graphics.fillStyle(paddle.color);
       graphics.fillRectShape(paddle.shape);
     }
@@ -125,7 +117,9 @@
 
     function render()
     {
-      renderPaddle(paddle);
+      graphics.clear();
+      renderPaddle(paddle_main);
+      renderPaddle(paddle_other);
       renderBall(ball);
     }
     function preload ()
@@ -136,10 +130,73 @@
     {
       graphics = this.add.graphics();
       input_manager = this.input;
+      socket = io("localhost:3000");
+
+      // Handling Socket events
+
+      socket.on('init-data', function(data){
+        config.width = data.config.width;
+        config.height = data.config.height;
+        config.backgroundColor = data.config.backgroundColor;
+
+        paddle_main = data.paddle_1;
+        paddle_main.shape = paddle_main_shape;
+        paddle_main.shape.y = config.height - 50;
+
+        paddle_other = data.paddle_2;
+        paddle_other.shape = paddle_other_shape;
+        paddle_other.shape.x = paddle_other.x;
+
+        ball = data.ball;
+        ball.shape = ball_shape;
+
+        console.log("I am " + paddle_main.playerName);
+      });
+
+      socket.on("game-data", function(data){
+
+        if(paddle_main.playerName == "player-1")
+        {
+          paddle_main.shape.y = data.paddle_1.y;
+          paddle_main.shape.x = data.paddle_1.x;
+
+          ball.shape.x = data.ball.x;
+          ball.shape.y = data.ball.y;
+
+          paddle_other.shape.x = data.paddle_2.x;
+
+          document.getElementById("main-score").innerHTML = data.score.player1;
+          document.getElementById("other-score").innerHTML = data.score.player2;
+        }
+        else if(paddle_main.playerName == "player-2")
+        {
+
+          ball.shape.x = data.ball.x;
+          ball.shape.y = config.height - data.ball.y;
+
+          paddle_other.shape.x = data.paddle_1.x;
+
+          document.getElementById("main-score").innerHTML = data.score.player2;
+          document.getElementById("other-score").innerHTML = data.score.player1;
+        }
+
+      });
+
+      socket.on("game-over", function(data){
+
+        if(paddle_main.playerName == "player-1")
+        {
+          document.getElementById("final-message").innerHTML = data.message.player1;
+        }
+        else if(paddle_main.playerName == "player-2")
+        {
+          document.getElementById("final-message").innerHTML = data.message.player2;
+          document.getElementById("final-message").style.display = "block";
+        }
+      });
 
 
-
-      paddle = {
+      paddle_main = {
         x : config.width / 2,
         y : config.height - 50,
         width : 100,
@@ -147,9 +204,21 @@
         color : 0xFF0000,
       };
 
-      paddle_shape = new Phaser.Geom.Rectangle(paddle.x, paddle.y, paddle.width, paddle.height, 0x000000);
+      paddle_main_shape = new Phaser.Geom.Rectangle(paddle_main.x, paddle_main.y, paddle_main.width, paddle_main.height, 0x000000);
+      paddle_main.shape = paddle_main_shape;
 
-      paddle.shape = paddle_shape;
+      paddle_other = {
+        x : config.width / 2,
+        y : 50,
+        width : 100,
+        height : 20,
+        color : 0x0000FF,
+      };
+
+      paddle_other_shape = new Phaser.Geom.Rectangle(paddle_other.x, paddle_other.y, paddle_other.width, paddle_other.height, 0x000000);
+      paddle_other.shape = paddle_other_shape;
+
+
 
       ball = {
         x : config.width / 2,
@@ -161,6 +230,7 @@
         dy : 5,
         isEnabled : true,
       };
+
       ball_shape = new Phaser.Geom.Rectangle(ball.x, ball.y, ball.width, ball.height, 0x000000);
 
       ball.shape = ball_shape;
@@ -171,11 +241,21 @@
     {
 
       handleUserInput(input_manager);
-      moveBall();
       render();
 
     }
 
     </script>
+    <div id="scoreboard">
+      <h2 id="main-score">
+        0
+      </h2>
+      <h2 id="other-score">
+        0
+      </h2>
+      <h2 id="final-message">
+        Final Message
+      </h2>
+    </div>
   </body>
 </html>
