@@ -31,7 +31,7 @@ app.get("/", (req, res) => {
 });
 
 const config = {
-  width : 1050,
+  width : 1000,
   height : 1500,
   backgroundColor : 0xb5b5b5,
 };
@@ -107,21 +107,24 @@ io.on('connection', (socket) => {
   if(io.sockets.adapter.rooms[room_id].length == 2)
   {
     console.log("Starting update loop");
-    update_loop = setInterval(function (){
+    io.in(room_id).emit("start-game", {});
+    setTimeout(function(){
 
-      client.get(room_id, function(err, object){
+      update_loop = setInterval(function (){
 
-        let game_data = JSON.parse(object);
+        client.get(room_id, function(err, object){
 
-        checkGameStatus(game_data.score, room_id);
-        moveBall(game_data.ball, game_data.paddle_1, game_data.paddle_2, game_data.score);
+          let game_data = JSON.parse(object);
 
-        client.set(room_id, JSON.stringify(game_data));
-        io.in(room_id).emit("game-data", game_data);
-      });
-    }, 16);
+          checkGameStatus(game_data.score, room_id, update_loop);
+          moveBall(game_data.ball, game_data.paddle_1, game_data.paddle_2, game_data.score);
 
+          client.set(room_id, JSON.stringify(game_data));
+          io.in(room_id).emit("game-data", game_data);
+        });
+      }, 16);
 
+    }, 3000);
 
   }
 
@@ -263,7 +266,7 @@ function moveBall(ball, paddle_1, paddle_2, score)
   }
 }
 
-function checkGameStatus(score, room_id)
+function checkGameStatus(score, room_id, update_loop)
 {
   if(score.player1 == 3)
   {
