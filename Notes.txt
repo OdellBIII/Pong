@@ -16,4 +16,4 @@ ToDo:
 - Keep track of score [DONE]
 - Increase screen size [DONE]
 - Add Score board [DONE]
-- Add end game event [Not started]
+- Add end game event [IN PROGRESS]

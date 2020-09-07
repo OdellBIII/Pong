@@ -2,6 +2,13 @@ const express = require('express');
 const path = require('path');
 const app = express();
 const nocache = require('nocache');
+const redis = require("redis");
+const client = redis.createClient();
+
+client.on("error", function(error){
+
+  console.error(error);
+});
 
 const server = app.listen(process.env.PORT || 3000, () => {
   console.log("Server listening at...");
@@ -15,99 +22,129 @@ app.set('etag', false);
 
 app.get("/", (req, res) => {
 
+  var user = req.query;
+  var cookie = {user_id : user.user_id, match_id : user.match_id};
+
+  res.cookie("user_data_pong", cookie);
+
   res.sendFile(path.join(__dirname + "/index.html"));
 });
 
-
-
 const config = {
-  width : 900,
+  width : 1050,
   height : 1500,
   backgroundColor : 0xb5b5b5,
-}
-
-var paddle_1 = {
-  x : config.width / 2,
-  y : config.height - 50,
-  width : 100,
-  height : 20,
-  color : 0xFF0000,
-  playerName : "player-1",
 };
 
-var paddle_2 = {
-  x : config.width / 2,
-  y : 50,
-  width : 100,
-  height : 20,
-  color : 0x0000FF,
-  playerName : "player-2",
-};
 
-var ball = {
-  x : config.width / 2,
-  y : config.height / 2,
-  width : 20,
-  height : 20,
-  color : 0xFFFF00,
-  dx : 1,
-  dy : 1,
-  isEnabled : true,
-}
-
-var counter = 0;
-var roomno = 0;
-var score = {player1 : 0, player2 : 0};
-var update_loop;
 
 io.on('connection', (socket) => {
 
+  var paddle_1 = {
+    x : config.width / 2,
+    y : config.height - 50,
+    width : 100,
+    height : 20,
+    color : 0xFF0000,
+    playerName : "player-1",
+  };
 
+  var paddle_2 = {
+    x : config.width / 2,
+    y : 50,
+    width : 100,
+    height : 20,
+    color : 0x0000FF,
+    playerName : "player-2",
+  };
+
+  var ball = {
+    x : config.width / 2,
+    y : config.height / 2,
+    width : 20,
+    height : 20,
+    color : 0xFFFF00,
+    dx : 1,
+    dy : 3,
+    isEnabled : true,
+  }
+
+  var score = {player1 : 0, player2 : 0};
+  var update_loop;
+
+  const room_id = parseInt(socket.handshake.query.match_id);
+
+  console.log("Room ID: " + room_id);
 
   console.log("A user connected");
   console.log("Sending initial data...");
 
-  socket.join("room-" + roomno);
+  socket.join(room_id);
 
-  if(counter == 0)
+  if(io.sockets.adapter.rooms[room_id].length == 1)
   {
+    let game_state = JSON.stringify({config : config, paddle_1 : paddle_1, paddle_2 : paddle_2, ball : ball, score : score});
+    client.set(room_id, game_state, function(err, reply){
+      console.log("-----REDIS OUTPUT REPLY----- " + reply);
+      console.log("-----REDIS OUTPUT ERROR----- " + err);
+    });
+
     socket.emit('init-data', {config : config, paddle_1 : paddle_1, paddle_2 : paddle_2, ball : ball});
+    console.log("Player-1 initialized");
+
+
+
   }
-  else if(counter == 1)
+  else if(io.sockets.adapter.rooms[room_id].length == 2)
   {
     socket.emit('init-data', {config : config, paddle_1 : paddle_2, paddle_2 : paddle_1, ball : ball});
+    console.log("Player-2 initialized");
   }
 
-  counter += 1;
 
   console.log("Sent initial data information successfully");
-  console.log("Starting update loop");
 
-  if(counter == 2)
+  if(io.sockets.adapter.rooms[room_id].length == 2)
   {
+    console.log("Starting update loop");
     update_loop = setInterval(function (){
 
-      moveBall();
-      io.in("room-" + roomno).emit("game-data", {ball : ball, paddle_1 : paddle_1, paddle_2 : paddle_2, score : score});
+      client.get(room_id, function(err, object){
+
+        let game_data = JSON.parse(object);
+
+        checkGameStatus(game_data.score, room_id);
+        moveBall(game_data.ball, game_data.paddle_1, game_data.paddle_2, game_data.score);
+
+        client.set(room_id, JSON.stringify(game_data));
+        io.in(room_id).emit("game-data", game_data);
+      });
     }, 16);
 
-    counter = 0;
+
+
   }
 
 
   socket.on("paddle-movement", function(data) {
 
-    if(data.paddle.playerName == "player-1")
-    {
-      paddle_1.x = data.paddle.x;
-      ball.isEnabled = true;
-    }
-    else if(data.paddle.playerName == "player-2")
-    {
-      paddle_2.x = data.paddle.x;
-      ball.isEnabled = true;
-    }
+    client.get(room_id, function(err, object){
+      let game_data = JSON.parse(object);
 
+      if(data.paddle.playerName == "player-1")
+      {
+        game_data.paddle_1.x = data.paddle.x;
+        game_data.ball.isEnabled = true;
+      }
+      else if(data.paddle.playerName == "player-2")
+      {
+        game_data.paddle_2.x = data.paddle.x;
+        game_data.ball.isEnabled = true;
+      }
+
+      client.set(room_id, JSON.stringify(game_data));
+
+    });
   });
 });
 
@@ -147,7 +184,7 @@ function didCollideWithCourtHorizontally(ball)
   return ball.x < 0 || (ball.x + ball.width) > config.width;
 }
 
-function moveBall()
+function moveBall(ball, paddle_1, paddle_2, score)
 {
   if(didCollideWithCourtVertically(ball))
   {
@@ -169,6 +206,8 @@ function moveBall()
       score.player2 += 1;
     }
 
+    ball.dy = 3;
+    ball.dx = 1;
 
     console.log("Score:");
     console.log(score);
@@ -189,13 +228,32 @@ function moveBall()
       ball.x = config.width - ball.width;
     }
 
+    if(ball.dx < 0)
+    {
+      ball.dx -= 1;
+    }
+    else if(ball.dx > 0)
+    {
+      ball.dx += 1;
+    }
+
     ball.dx *= -1;
   }
 
 
   if(didCollideWithPaddle(ball, paddle_1) || didCollideWithPaddle(ball, paddle_2))
   {
+    if(ball.dy < 0)
+    {
+      ball.dy -= 1;
+    }
+    else if(ball.dy > 0)
+    {
+      ball.dy += 1;
+    }
+
     ball.dy *= -1;
+
   }
 
   if(ball.isEnabled)
@@ -205,11 +263,11 @@ function moveBall()
   }
 }
 
-function checkGameStatus(score)
+function checkGameStatus(score, room_id)
 {
   if(score.player1 == 3)
   {
-    io.in("room-" + roomno).emit("game-over", {message :
+    io.in(room_id).emit("game-over", {message :
       {
         player1 : "You Won!",
         player2 : "You Lost!",
@@ -219,7 +277,7 @@ function checkGameStatus(score)
   }
   else if(score.player2 == 3)
   {
-    io.in("room-" + roomno).emit("game-over", {message :
+    io.in(room_id).emit("game-over", {message :
       {
         player1 : "You Lost!",
         player2 : "You Won!",
