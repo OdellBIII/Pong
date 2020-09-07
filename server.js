@@ -36,7 +36,7 @@ app.get("/", (req, res) => {
 
 const config = {
   width : 1000,
-  height : 1500,
+  height : 700,
   backgroundColor : 0xb5b5b5,
 };
 
