@@ -3,7 +3,11 @@ const path = require('path');
 const app = express();
 const nocache = require('nocache');
 const redis = require("redis");
-const client = redis.createClient();
+const client = redis.createClient('redis://h:p85e3f269d15b80990c224b54a8ce1b199fc236dbd5df2633179e481b5d399bb0@ec2-3-220-198-248.compute-1.amazonaws.com:9199', {
+  host : 'ec2-3-220-198-248.compute-1.amazonaws.com',
+  port : '9199',
+  password : 'p85e3f269d15b80990c224b54a8ce1b199fc236dbd5df2633179e481b5d399bb0',
+});
 
 client.on("error", function(error){
 
