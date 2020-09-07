@@ -159,7 +159,7 @@
       var cookie = getCookie("user_data_pong");
       var user = JSON.parse(cookie.substring(2));
       // Add in user_id and counter information to socket string
-      socket = io("localhost:3000?match_id=" + user.match_id);
+      socket = io("https://pong-sc.herokuapp.com/?match_id=" + user.match_id);
 
       graphics = this.add.graphics();
       input_manager = this.input;
