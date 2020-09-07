@@ -183,7 +183,7 @@ function didCollideWithPaddle(ball, paddle)
 
 function didCollideWithCourtVertically(ball)
 {
-  return (ball.y < 0) || (ball.y + ball.height > config.height);
+  return (ball.y < 0) || (ball.y + ball.height >= config.height);
 }
 
 function didCollideWithCourtHorizontally(ball)
